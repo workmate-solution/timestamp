@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRO 타임스탬프 - 현장 증거 전문가용</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .modal { transition: transform 0.3s ease-out; }
+        .hidden-modal { transform: translateY(100%); }
+    </script>
+</head>
+<body class="bg-black text-white min-h-screen flex flex-col font-sans overflow-hidden">
+
+    <div class="relative flex-1 flex items-center justify-center bg-black">
+        <video id="video" autoplay playsinline class="w-full h-full object-cover"></video>
+
+        <div id="error-message-container" class="absolute inset-0 bg-black/80 z-10 flex flex-col items-center justify-center text-center p-8">
+            <h2 class="text-2xl font-bold text-yellow-400 mb-4">카메라가 보이지 않으시나요?</h2>
+            <p class="mb-2">이 앱은 보안 정책상 <strong class="text-white">로컬 서버 환경</strong>에서 실행해야 합니다.</p>
+            <p class="mb-6">파일을 더블클릭해서 여셨다면, 카메라 기능이 작동하지 않습니다.</p>
+            <div class="bg-zinc-800 p-6 rounded-lg text-left">
+                <h3 class="font-bold text-lg mb-2">해결 방법 (VS Code):</h3>
+                <ol class="list-decimal list-inside space-y-1 text-sm">
+                    <li><strong>Live Server</strong> 확장 프로그램을 설치하세요.</li>
+                    <li>HTML 파일 위에서 마우스 오른쪽 클릭 후, <strong>'Open with Live Server'</strong>를 선택하세요.</li>
+                </ol>
+            </div>
+            <p class="mt-6 text-xs text-zinc-400">자동으로 `http://127.0.0.1:5500` 과 같은 주소로 새 창이 열립니다.</p>
+        </div>
+        
+        <div id="overlay" class="absolute bottom-10 left-6 pointer-events-none drop-shadow-lg">
+            <div id="preview-logo-container" class="hidden mb-2">
+                <img id="preview-logo" src="" class="h-10 w-auto object-contain">
+            </div>
+            <p id="preview-time" class="font-bold leading-tight">시간 로딩 중...</p>
+            <p id="preview-gps" class="text-xs opacity-90">GPS 좌표 수신 중...</p>
+            <p id="preview-hash" class="text-[10px] font-mono opacity-50 mt-1 uppercase"></p>
+        </div>
+
+        <button onclick="toggleSettingsPanel(true)" class="absolute top-6 right-6 bg-black/40 p-3 rounded-full backdrop-blur-md border border-white/20">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="h-32 bg-zinc-900 flex items-center justify-center relative">
+        <button onclick="takePhoto()" class="w-20 h-20 bg-white rounded-full border-4 border-zinc-500 active:scale-95 transition-transform disabled:opacity-50"></button>
+    </div>
+
+    <div id="settings-panel" class="modal hidden-modal fixed inset-0 bg-zinc-900 z-50 p-8 flex flex-col">
+        <div class="flex justify-between items-center mb-8">
+            <h2 class="text-2xl font-bold">환경 설정</h2>
+            <button onclick="toggleSettingsPanel(false)" class="text-zinc-400">닫기</button>
+        </div>
+
+        <div class="space-y-6 overflow-y-auto">
+            <div>
+                <label class="block text-sm text-zinc-400 mb-2">워터마크 색상</label>
+                <input type="color" id="cfg-color" onchange="updateLive()" class="w-full h-12 bg-transparent">
+            </div>
+            <div>
+                <label class="block text-sm text-zinc-400 mb-2">글자 크기</label>
+                <input type="range" id="cfg-size" min="20" max="60" oninput="updateLive()" class="w-full">
+            </div>
+            <div>
+                <label class="block text-sm text-zinc-400 mb-2">업체 로고 등록 (PNG)</label>
+                <input type="file" id="cfg-logo" accept="image/*" onchange="loadLogo(event)" class="text-sm">
+            </div>
+            <div class="flex justify-between items-center">
+                <label class="text-sm text-zinc-400">위변조 방지 코드 노출</label>
+                <input type="checkbox" id="cfg-hash" onchange="updateLive()" checked class="w-6 h-6">
+            </div>
+        </div>
+
+        <button onclick="toggleSettingsPanel(false)" class="mt-auto w-full bg-blue-600 py-4 rounded-xl font-bold">설정 완료</button>
+    </div>
+
+    <canvas id="main-canvas" class="hidden"></canvas>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('main-canvas');
+        let userLogo = null;
+        let currentGpsPosition = null;
+
+        // 초기 설정값 (로컬스토리지 연동)
+        let config;
+        try {
+            config = JSON.parse(localStorage.getItem('ts_config')) || {
+                color: '#ffff00',
+                size: 30,
+                showHash: true
+            };
+        } catch (e) {
+            config = { color: '#ffff00', size: 30, showHash: true };
+        }
+
+        // 초기화
+        async function init() {
+            // [중요] 파일 더블클릭으로 실행 시 즉시 중단 (안내 화면 유지)
+            if (window.location.protocol === 'file:') {
+                return; 
+            }
+
+            try {
+                // 카메라 설정
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" }, 
+                    audio: false 
+                });
+                video.srcObject = stream;
+                // 카메라 로딩 성공 시, 안내 메시지 숨기기
+                document.getElementById('error-message-container').style.display = 'none';
+            } catch (err) {
+                console.error("카메라 접근 오류:", err);
+                // 안내 메시지가 이미 표시되므로 alert는 주석 처리하거나, 다른 방식으로 사용자에게 알릴 수 있습니다.
+                // alert("카메라를 시작할 수 없습니다. 권한을 확인해주세요.");
+            }
+
+            // UI 초기값 반영
+            document.getElementById('cfg-color').value = config.color;
+            document.getElementById('cfg-size').value = config.size;
+            document.getElementById('cfg-hash').checked = config.showHash;
+
+            updateLive();
+            setInterval(updateTime, 1000);
+            updateGPS();
+        }
+
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('preview-time').innerText = now.toLocaleString();
+            // 미리보기용 위변조 방지 해시 (실제 해시는 촬영 시 생성)
+            if(config.showHash) {
+                const hashEl = document.getElementById('preview-hash');
+                if (!hashEl.innerText.startsWith('SECURE-ID')) {
+                    hashEl.innerText = 'SECURE-ID: ' + Math.random().toString(36).substring(2, 10).toUpperCase();
+                }
+            }
+        }
+
+        function updateGPS() {
+            if (!navigator.geolocation) {
+                document.getElementById('preview-gps').innerText = 'GPS를 지원하지 않습니다.';
+                return;
+            }
+            navigator.geolocation.watchPosition(pos => {
+                currentGpsPosition = pos.coords;
+                document.getElementById('preview-gps').innerText = `좌표: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+            }, err => {
+                console.error("GPS 오류:", err);
+                document.getElementById('preview-gps').innerText = 'GPS 좌표를 받을 수 없습니다.';
+                currentGpsPosition = null;
+            }, { enableHighAccuracy: true });
+        }
+
+        function updateLive() {
+            config.color = document.getElementById('cfg-color').value;
+            config.size = document.getElementById('cfg-size').value;
+            config.showHash = document.getElementById('cfg-hash').checked;
+            
+            const pTime = document.getElementById('preview-time');
+            pTime.style.color = config.color;
+            pTime.style.fontSize = config.size + 'px';
+            document.getElementById('preview-hash').style.display = config.showHash ? 'block' : 'none';
+            
+            localStorage.setItem('ts_config', JSON.stringify(config));
+        }
+
+        function loadLogo(event) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                userLogo = new Image();
+                userLogo.src = e.target.result;
+                document.getElementById('preview-logo').src = e.target.result;
+                document.getElementById('preview-logo-container').classList.remove('hidden');
+            }
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+        // 설정 패널 보이기/숨기기 (이름 및 로직 명확화)
+        function toggleSettingsPanel(show) {
+            const panel = document.getElementById('settings-panel');
+            if(show) {
+                panel.classList.remove('hidden-modal');
+            } else {
+                panel.classList.add('hidden-modal');
+            }
+        }
+
+        // 메타데이터로 SHA-256 해시 생성
+        async function createSecureHash(data) {
+            const encoder = new TextEncoder();
+            const dataBuffer = encoder.encode(data);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 8).toUpperCase();
+        }
+
+        async function takePhoto() {
+            const photoButton = document.querySelector('.h-32 button');
+            photoButton.disabled = true;
+
+            const ctx = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // 1. 원본 촬영물 그리기
+            ctx.drawImage(video, 0, 0);
+
+            // 2. 촬영 시점의 정확한 데이터 수집
+            const now = new Date();
+            const timeString = now.toLocaleString('ko-KR', { hour12: false });
+            const gpsString = currentGpsPosition 
+                ? `좌표: ${currentGpsPosition.latitude.toFixed(5)}, ${currentGpsPosition.longitude.toFixed(5)}`
+                : 'GPS 정보 없음';
+
+            // 3. 메타데이터 기반 실제 해시 생성
+            let hashString = '';
+            if (config.showHash) {
+                const dataToHash = `${now.toISOString()}|${gpsString}`;
+                const secureHash = await createSecureHash(dataToHash);
+                hashString = 'SECURE-ID: ' + secureHash;
+            }
+
+            // 4. 워터마크 그리기
+            const margin = 40;
+            let currentY = canvas.height - margin;
+
+            ctx.textAlign = "left";
+            ctx.shadowColor = "rgba(0,0,0,0.7)";
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+            
+            if (config.showHash) {
+                ctx.fillStyle = "rgba(255,255,255,0.6)";
+                ctx.font = "20px monospace";
+                ctx.fillText(hashString, margin, currentY);
+                currentY -= 30;
+            }
+
+            ctx.fillStyle = "white";
+            ctx.font = "25px sans-serif";
+            ctx.fillText(gpsString, margin, currentY);
+            currentY -= 40;
+
+            ctx.fillStyle = config.color;
+            ctx.font = `bold ${config.size * 1.5}px sans-serif`;
+            ctx.fillText(timeString, margin, currentY);
+            currentY -= (config.size * 1.5 + 10);
+
+            if (userLogo) {
+                const logoHeight = 60;
+                const logoWidth = (userLogo.width / userLogo.height) * logoHeight;
+                ctx.drawImage(userLogo, margin, currentY - logoHeight, logoWidth, logoHeight);
+            }
+
+            ctx.shadowColor = "transparent";
+
+            const link = document.createElement('a');
+            link.download = `proof_${now.toISOString().replace(/[:.]/g, '-')}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.click();
+
+            photoButton.disabled = false;
+        }
+
+        init();
+    </script>
+</body>
+</html>
