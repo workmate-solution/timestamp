@@ -3,160 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TIMESTAMP PRO | 전문가용 카메라</title>
+    <title>TIMESTAMP PRO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&display=swap');
-        body { background-color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        .capture-flash { animation: flash 0.2s ease-out; }
-        @keyframes flash { 0% { background: white; opacity: 1; } 100% { opacity: 0; } }
-    </style>
 </head>
-<body class="flex flex-col min-h-screen overflow-hidden">
+<body class="bg-black text-white min-h-screen overflow-hidden">
 
-    <div id="flash" class="fixed inset-0 z-50 pointer-events-none"></div>
-
-    <div class="absolute top-0 w-full z-20 p-5 flex justify-between items-start pointer-events-none">
-        <div class="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-2xl pointer-events-auto">
-            <div class="flex items-center gap-2 text-[10px] text-red-500 font-bold mb-1">
-                <span class="flex h-2 w-2">
-                    <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                </span>
-                LIVE RECORDING
-            </div>
-            <div id="display-time" class="mono text-white text-lg font-bold">00:00:00</div>
+    <div id="intro" class="fixed inset-0 z-[100] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center">
+        <div class="w-16 h-16 bg-yellow-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+            <i data-lucide="camera" class="text-black w-10 h-10"></i>
         </div>
-        <button class="bg-black/40 backdrop-blur-md p-3 rounded-full border border-white/10 pointer-events-auto text-white">
-            <i data-lucide="settings-2"></i>
+        <h1 class="text-2xl font-bold mb-2">TIMESTAMP PRO</h1>
+        <p class="text-zinc-500 mb-10 text-sm">카메라와 위치 권한 승인이 필요합니다.</p>
+        
+        <button onclick="startApp()" class="w-full max-w-xs bg-white text-black py-4 rounded-xl font-bold text-lg active:scale-95 transition-all">
+            카메라 켜기 및 시작
         </button>
     </div>
 
-    <div class="relative flex-1 bg-zinc-900 flex items-center justify-center overflow-hidden">
-        <video id="webcam" autoplay playsinline class="w-full h-full object-cover"></video>
-        
-        <div class="absolute bottom-8 left-6 text-white pointer-events-none drop-shadow-2xl">
-            <div id="preview-date" class="text-3xl font-black italic tracking-tighter text-yellow-400">2026.03.03</div>
-            <div id="preview-gps" class="text-xs font-medium opacity-80 mt-1 flex items-center gap-1">
-                <i data-lucide="map-pin" class="w-3 h-3"></i> GPS 수신 대기 중...
+    <main id="app" class="hidden fixed inset-0 flex flex-col">
+        <div class="relative flex-1 bg-black flex items-center justify-center">
+            <video id="video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+            
+            <div class="absolute bottom-8 left-6 text-left pointer-events-none drop-shadow-2xl">
+                <p id="p-date" class="text-2xl font-black text-yellow-400 italic">LOADING...</p>
+                <p id="p-gps" class="text-[10px] opacity-80 mt-1">GPS 수신 중...</p>
             </div>
-            <div id="preview-hash" class="mono text-[8px] opacity-40 mt-2 tracking-widest">HASH: UNKNOWN</div>
         </div>
-    </div>
 
-    <div class="h-44 bg-zinc-950 border-t border-white/5 flex items-center justify-around px-8 relative z-30">
-        <div id="gallery-preview" class="w-14 h-14 bg-zinc-800 rounded-xl border border-white/10 flex items-center justify-center text-zinc-600 overflow-hidden">
-            <i data-lucide="image" class="w-6 h-6"></i>
+        <div class="h-32 bg-zinc-900 flex items-center justify-center border-t border-white/10">
+            <button onclick="take()" class="w-20 h-20 bg-white rounded-full border-8 border-zinc-700 active:scale-90 transition-transform"></button>
         </div>
-        
-        <button onclick="capture()" class="relative group">
-            <div class="absolute -inset-4 bg-white/10 rounded-full blur-xl group-active:bg-white/20 transition-all"></div>
-            <div class="w-20 h-20 bg-white rounded-full border-[6px] border-zinc-800 relative z-10 active:scale-90 transition-transform"></div>
-        </button>
-
-        <div class="w-14 h-14 flex items-center justify-center text-zinc-400">
-            <i data-lucide="shield-check"></i>
-        </div>
-    </div>
+    </main>
 
     <canvas id="canvas" class="hidden"></canvas>
 
     <script>
-        const video = document.getElementById('webcam');
+        const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
-        const flash = document.getElementById('flash');
-        let currentLoc = "Searching GPS...";
+        let gps = "좌표 확인 불가";
 
-        // 1. 초기화 및 카메라 연결
-        async function start() {
+        // 아이콘 초기화
+        lucide.createIcons();
+
+        // [해결책] 버튼 클릭 시 실행되어야 브라우저가 차단 안 함
+        async function startApp() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+                    video: { facingMode: "environment" },
                     audio: false
                 });
                 video.srcObject = stream;
-                lucide.createIcons();
-                initRealtime();
+
+                // UI 전환
+                document.getElementById('intro').style.display = 'none';
+                document.getElementById('app').classList.remove('hidden');
+
+                // 데이터 루프 시작
+                setInterval(updateData, 1000);
+                startGPS();
             } catch (err) {
-                alert("오류: 카메라 권한이 필요합니다. (HTTPS 환경 필수)");
-                console.error(err);
+                alert("카메라 권한을 허용해야 실행 가능합니다: " + err.message);
             }
         }
 
-        // 2. 시간/GPS 실시간 업데이트
-        function initRealtime() {
-            setInterval(() => {
-                const now = new Date();
-                const timeStr = now.toTimeString().split(' ')[0];
-                const dateStr = now.toISOString().split('T')[0].replace(/-/g, '.');
-                
-                document.getElementById('display-time').innerText = timeStr;
-                document.getElementById('preview-date').innerText = dateStr + " " + timeStr;
-                
-                // 위변조 방지 해시 (고유성 증명용)
-                const hash = btoa(dateStr + timeStr).substring(5, 15).toUpperCase();
-                document.getElementById('preview-hash').innerText = "VERIFY-ID: " + hash;
-            }, 1000);
+        function updateData() {
+            const now = new Date();
+            document.getElementById('p-date').innerText = now.toLocaleString();
+        }
 
+        function startGPS() {
             navigator.geolocation.watchPosition(p => {
-                currentLoc = `${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`;
-                document.getElementById('preview-gps').innerHTML = `<i data-lucide="map-pin" class="w-3 h-3"></i> LOC: ${currentLoc}`;
-                lucide.createIcons();
+                gps = `${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`;
+                document.getElementById('p-gps').innerText = "LOC: " + gps;
             }, null, { enableHighAccuracy: true });
         }
 
-        // 3. 고해상도 사진 촬영 및 합성
-        function capture() {
-            // 플래시 효과
-            flash.classList.add('capture-flash');
-            setTimeout(() => flash.classList.remove('capture-flash'), 200);
-
+        function take() {
             const ctx = canvas.getContext('2d');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-
-            // 원본 캡처
             ctx.drawImage(video, 0, 0);
-
-            // 워터마크 디자인 입히기
-            const padding = canvas.width * 0.05;
-            let y = canvas.height - padding;
-
-            ctx.shadowColor = "black";
-            ctx.shadowBlur = 15;
-            ctx.textAlign = "left";
-
-            // 해시코드
-            ctx.fillStyle = "rgba(255,255,255,0.4)";
-            ctx.font = "bold 24px monospace";
-            ctx.fillText(document.getElementById('preview-hash').innerText, padding, y);
-            y -= 40;
-
-            // GPS 정보
+            
+            ctx.fillStyle = "#fbbf24";
+            ctx.font = "bold 40px sans-serif";
+            ctx.fillText(document.getElementById('p-date').innerText, 30, canvas.height - 70);
+            
             ctx.fillStyle = "white";
-            ctx.font = "bold 35px sans-serif";
-            ctx.fillText("LOC: " + currentLoc, padding, y);
-            y -= 60;
+            ctx.font = "20px sans-serif";
+            ctx.fillText("LOC: " + gps, 30, canvas.height - 30);
 
-            // 날짜 및 시간
-            ctx.fillStyle = "#fbbf24"; // 옐로우
-            ctx.font = "italic black 70px sans-serif";
-            ctx.fillText(document.getElementById('preview-date').innerText, padding, y);
-
-            // 결과 저장
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
             const link = document.createElement('a');
-            link.download = `TS_PRO_${Date.now()}.jpg`;
-            link.href = dataUrl;
+            link.download = `TS_${Date.now()}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg');
             link.click();
-
-            // 갤러리 미리보기 업데이트
-            document.getElementById('gallery-preview').innerHTML = `<img src="${dataUrl}" class="w-full h-full object-cover">`;
         }
-
-        window.onload = start;
     </script>
 </body>
 </html>
