@@ -1,91 +1,91 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FINAL PRO CAM</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>노트북 완벽 작동 타임스탬프</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-black text-white min-h-screen flex flex-col items-center justify-center">
+<body class="bg-zinc-900 text-white min-h-screen flex flex-col items-center justify-center p-5">
 
-    <div id="layer-start" class="fixed inset-0 z-50 bg-zinc-900 flex flex-col items-center justify-center p-10">
-        <h1 class="text-3xl font-black text-yellow-500 mb-4">FINAL CHECK</h1>
-        <p class="text-zinc-400 text-center mb-10 text-sm italic">
-            "허용" 팝업이 뜨면 반드시 허용을 눌러주세요.<br>배포 후 빈 화면 문제를 해결한 버전입니다.
-        </p>
-        <button onclick="powerOn()" class="w-full py-5 bg-white text-black font-bold rounded-2xl shadow-xl active:scale-95">
-            카메라 강제 활성화
+    <div id="start-box" class="text-center">
+        <h1 class="text-3xl font-black mb-6 text-yellow-500">PC/노트북 전용 버전</h1>
+        <button onclick="runCamera()" class="px-10 py-5 bg-blue-600 rounded-2xl font-bold text-xl shadow-2xl active:scale-95 transition-all">
+            카메라 연결 (클릭)
+        </button>
+        <p class="mt-4 text-zinc-500 text-sm">주소창 상단 '허용' 팝업을 꼭 눌러주세요!</p>
+    </div>
+
+    <div id="cam-container" class="hidden w-full max-w-2xl relative rounded-3xl overflow-hidden shadow-2xl border-4 border-zinc-700">
+        <video id="webcam" autoplay playsinline class="w-full h-auto bg-black"></video>
+        
+        <div class="absolute bottom-5 left-5 text-left pointer-events-none drop-shadow-lg">
+            <p id="time-display" class="text-2xl font-bold text-yellow-400">LOADING...</p>
+            <p id="gps-display" class="text-xs text-white opacity-80 mt-1 italic">LOCATION WAITING...</p>
+        </div>
+
+        <button onclick="takeShot()" class="absolute bottom-5 right-5 w-16 h-16 bg-white rounded-full border-4 border-zinc-800 active:scale-90 transition-all flex items-center justify-center">
+            <div class="w-12 h-12 rounded-full border-2 border-zinc-400"></div>
         </button>
     </div>
 
-    <div id="layer-cam" class="hidden fixed inset-0 flex flex-col">
-        <div class="relative flex-1 flex items-center justify-center bg-black">
-            <video id="v" autoplay playsinline muted class="w-full h-full object-cover"></video>
-            
-            <div class="absolute bottom-10 left-6 pointer-events-none drop-shadow-2xl">
-                <p id="d" class="text-2xl font-black text-yellow-400">LOADING...</p>
-                <p id="g" class="text-[10px] text-white opacity-70 mt-1">GPS 수신 대기...</p>
-            </div>
-        </div>
-        
-        <div class="h-32 bg-zinc-950 flex items-center justify-center">
-            <button onclick="snap()" class="w-20 h-20 bg-white rounded-full border-8 border-zinc-800 active:bg-gray-400"></button>
-        </div>
-    </div>
-
-    <canvas id="c" class="hidden"></canvas>
+    <canvas id="out-canvas" class="hidden"></canvas>
 
     <script>
-        const v = document.getElementById('v');
-        const c = document.getElementById('c');
+        const v = document.getElementById('webcam');
+        const c = document.getElementById('out-canvas');
 
-        async function powerOn() {
+        async function runCamera() {
             try {
-                // 1. 카메라 스트림 요청
+                // [수정] 노트북/폰 가리지 않고 가장 기본 카메라를 잡는 설정
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", width: 1280, height: 720 },
+                    video: true, // 단순히 true로 설정하면 노트북 웹캠이 바로 잡힙니다.
                     audio: false
                 });
 
-                // 2. 비디오 소스 연결
                 v.srcObject = stream;
-
-                // [중요] 비디오 데이터가 완전히 로드된 것을 확인하고 화면 표시
+                
                 v.onloadedmetadata = () => {
-                    v.play(); // 강제 재생 명령
-                    document.getElementById('layer-start').style.display = 'none';
-                    document.getElementById('layer-cam').classList.remove('hidden');
+                    v.play();
+                    document.getElementById('start-box').style.display = 'none';
+                    document.getElementById('cam-container').classList.remove('hidden');
                 };
 
-                // 데이터 업데이트 시작
-                setInterval(() => { document.getElementById('d').innerText = new Date().toLocaleString(); }, 1000);
-                navigator.geolocation.watchPosition(p => {
-                    document.getElementById('g').innerText = `LOC: ${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`;
-                }, null, {enableHighAccuracy: true});
+                // 실시간 정보 업데이트
+                setInterval(() => {
+                    document.getElementById('time-display').innerText = new Date().toLocaleString();
+                }, 1000);
+
+                // 위치 정보 (노트북은 Wi-Fi 기반으로 잡힙니다)
+                navigator.geolocation.getCurrentPosition(p => {
+                    document.getElementById('gps-display').innerText = `LAT: ${p.coords.latitude.toFixed(4)} / LON: ${p.coords.longitude.toFixed(4)}`;
+                }, (err) => {
+                    document.getElementById('gps-display').innerText = "위치 정보 권한 필요";
+                });
 
             } catch (err) {
-                alert("카메라를 켤 수 없습니다. (HTTPS 환경인지 확인해주세요)\n에러명: " + err.name);
+                alert("카메라를 찾을 수 없습니다: " + err.message);
             }
         }
 
-        function snap() {
+        function takeShot() {
             const ctx = c.getContext('2d');
             c.width = v.videoWidth;
             c.height = v.videoHeight;
             ctx.drawImage(v, 0, 0);
             
-            ctx.fillStyle = "#fbbf24";
-            ctx.font = "bold 50px sans-serif";
-            ctx.fillText(document.getElementById('d').innerText, 50, c.height - 100);
+            ctx.fillStyle = "yellow";
+            ctx.font = "bold 40px Arial";
+            ctx.fillText(document.getElementById('time-display').innerText, 30, c.height - 80);
             
             ctx.fillStyle = "white";
-            ctx.font = "30px sans-serif";
-            ctx.fillText(document.getElementById('g').innerText, 50, c.height - 50);
+            ctx.font = "24px Arial";
+            ctx.fillText(document.getElementById('gps-display').innerText, 30, c.height - 40);
 
-            const a = document.createElement('a');
-            a.download = `PRO_SHOT_${Date.now()}.jpg`;
-            a.href = c.toDataURL('image/jpeg', 0.9);
-            a.click();
+            const link = document.createElement('a');
+            link.download = `WEB_SHOT_${Date.now()}.jpg`;
+            link.href = c.toDataURL('image/jpeg');
+            link.click();
         }
     </script>
 </body>
