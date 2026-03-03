@@ -3,100 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TIMESTAMP PRO</title>
+    <title>FINAL PRO CAM</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="bg-black text-white min-h-screen overflow-hidden">
+<body class="bg-black text-white min-h-screen flex flex-col items-center justify-center">
 
-    <div id="intro" class="fixed inset-0 z-[100] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center">
-        <div class="w-16 h-16 bg-yellow-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-            <i data-lucide="camera" class="text-black w-10 h-10"></i>
-        </div>
-        <h1 class="text-2xl font-bold mb-2">TIMESTAMP PRO</h1>
-        <p class="text-zinc-500 mb-10 text-sm">카메라와 위치 권한 승인이 필요합니다.</p>
-        
-        <button onclick="startApp()" class="w-full max-w-xs bg-white text-black py-4 rounded-xl font-bold text-lg active:scale-95 transition-all">
-            카메라 켜기 및 시작
+    <div id="layer-start" class="fixed inset-0 z-50 bg-zinc-900 flex flex-col items-center justify-center p-10">
+        <h1 class="text-3xl font-black text-yellow-500 mb-4">FINAL CHECK</h1>
+        <p class="text-zinc-400 text-center mb-10 text-sm italic">
+            "허용" 팝업이 뜨면 반드시 허용을 눌러주세요.<br>배포 후 빈 화면 문제를 해결한 버전입니다.
+        </p>
+        <button onclick="powerOn()" class="w-full py-5 bg-white text-black font-bold rounded-2xl shadow-xl active:scale-95">
+            카메라 강제 활성화
         </button>
     </div>
 
-    <main id="app" class="hidden fixed inset-0 flex flex-col">
-        <div class="relative flex-1 bg-black flex items-center justify-center">
-            <video id="video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+    <div id="layer-cam" class="hidden fixed inset-0 flex flex-col">
+        <div class="relative flex-1 flex items-center justify-center bg-black">
+            <video id="v" autoplay playsinline muted class="w-full h-full object-cover"></video>
             
-            <div class="absolute bottom-8 left-6 text-left pointer-events-none drop-shadow-2xl">
-                <p id="p-date" class="text-2xl font-black text-yellow-400 italic">LOADING...</p>
-                <p id="p-gps" class="text-[10px] opacity-80 mt-1">GPS 수신 중...</p>
+            <div class="absolute bottom-10 left-6 pointer-events-none drop-shadow-2xl">
+                <p id="d" class="text-2xl font-black text-yellow-400">LOADING...</p>
+                <p id="g" class="text-[10px] text-white opacity-70 mt-1">GPS 수신 대기...</p>
             </div>
         </div>
-
-        <div class="h-32 bg-zinc-900 flex items-center justify-center border-t border-white/10">
-            <button onclick="take()" class="w-20 h-20 bg-white rounded-full border-8 border-zinc-700 active:scale-90 transition-transform"></button>
+        
+        <div class="h-32 bg-zinc-950 flex items-center justify-center">
+            <button onclick="snap()" class="w-20 h-20 bg-white rounded-full border-8 border-zinc-800 active:bg-gray-400"></button>
         </div>
-    </main>
+    </div>
 
-    <canvas id="canvas" class="hidden"></canvas>
+    <canvas id="c" class="hidden"></canvas>
 
     <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        let gps = "좌표 확인 불가";
+        const v = document.getElementById('v');
+        const c = document.getElementById('c');
 
-        // 아이콘 초기화
-        lucide.createIcons();
-
-        // [해결책] 버튼 클릭 시 실행되어야 브라우저가 차단 안 함
-        async function startApp() {
+        async function powerOn() {
             try {
+                // 1. 카메라 스트림 요청
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" },
+                    video: { facingMode: "environment", width: 1280, height: 720 },
                     audio: false
                 });
-                video.srcObject = stream;
 
-                // UI 전환
-                document.getElementById('intro').style.display = 'none';
-                document.getElementById('app').classList.remove('hidden');
+                // 2. 비디오 소스 연결
+                v.srcObject = stream;
 
-                // 데이터 루프 시작
-                setInterval(updateData, 1000);
-                startGPS();
+                // [중요] 비디오 데이터가 완전히 로드된 것을 확인하고 화면 표시
+                v.onloadedmetadata = () => {
+                    v.play(); // 강제 재생 명령
+                    document.getElementById('layer-start').style.display = 'none';
+                    document.getElementById('layer-cam').classList.remove('hidden');
+                };
+
+                // 데이터 업데이트 시작
+                setInterval(() => { document.getElementById('d').innerText = new Date().toLocaleString(); }, 1000);
+                navigator.geolocation.watchPosition(p => {
+                    document.getElementById('g').innerText = `LOC: ${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`;
+                }, null, {enableHighAccuracy: true});
+
             } catch (err) {
-                alert("카메라 권한을 허용해야 실행 가능합니다: " + err.message);
+                alert("카메라를 켤 수 없습니다. (HTTPS 환경인지 확인해주세요)\n에러명: " + err.name);
             }
         }
 
-        function updateData() {
-            const now = new Date();
-            document.getElementById('p-date').innerText = now.toLocaleString();
-        }
-
-        function startGPS() {
-            navigator.geolocation.watchPosition(p => {
-                gps = `${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`;
-                document.getElementById('p-gps').innerText = "LOC: " + gps;
-            }, null, { enableHighAccuracy: true });
-        }
-
-        function take() {
-            const ctx = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0);
+        function snap() {
+            const ctx = c.getContext('2d');
+            c.width = v.videoWidth;
+            c.height = v.videoHeight;
+            ctx.drawImage(v, 0, 0);
             
             ctx.fillStyle = "#fbbf24";
-            ctx.font = "bold 40px sans-serif";
-            ctx.fillText(document.getElementById('p-date').innerText, 30, canvas.height - 70);
+            ctx.font = "bold 50px sans-serif";
+            ctx.fillText(document.getElementById('d').innerText, 50, c.height - 100);
             
             ctx.fillStyle = "white";
-            ctx.font = "20px sans-serif";
-            ctx.fillText("LOC: " + gps, 30, canvas.height - 30);
+            ctx.font = "30px sans-serif";
+            ctx.fillText(document.getElementById('g').innerText, 50, c.height - 50);
 
-            const link = document.createElement('a');
-            link.download = `TS_${Date.now()}.jpg`;
-            link.href = canvas.toDataURL('image/jpeg');
-            link.click();
+            const a = document.createElement('a');
+            a.download = `PRO_SHOT_${Date.now()}.jpg`;
+            a.href = c.toDataURL('image/jpeg', 0.9);
+            a.click();
         }
     </script>
 </body>
